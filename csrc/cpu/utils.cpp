@@ -3,6 +3,7 @@
   #include <unistd.h>
   #include <string>
   #include <sched.h>
+  #include <numaif.h>
 #endif
 #if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
   #include <unistd.h>
@@ -22,6 +23,7 @@ std::string init_cpu_threads_env(const std::string& cpu_ids) {
 #endif
 
 #ifndef VLLM_NUMA_DISABLED
+#define MPOL_WEIGHTED_INTERLEAVE 6
 std::string init_cpu_threads_env(const std::string& cpu_ids) {
   bitmask* omp_cpu_mask = numa_parse_cpustring_all(cpu_ids.c_str());
   TORCH_CHECK(omp_cpu_mask != nullptr,
@@ -44,8 +46,23 @@ std::string init_cpu_threads_env(const std::string& cpu_ids) {
     }
   }
 
+  std::string nodestring = "1,2,3";
+  bitmask *numa_cpu_mask = numa_parse_nodestring(nodestring.c_str());
+  errno = 0;
+  set_mempolicy(MPOL_WEIGHTED_INTERLEAVE, numa_cpu_mask->maskp, 64);
+  if (errno != 0) {
+    TORCH_WARN("set_mempolicy weighted interleave failed. errno: " + std::to_string(errno));
+  } else {
+    TORCH_WARN(
+        "NUMA binding: Using WEIGHTED_INTERLEAVE policy for memory "
+        "allocation across NUMA nodes. Memory allocations will be "
+        "interleaved across NUMA nodes with weights proportional to the number "
+        "of CPUs specified in `cpu_ids` on each NUMA node.");
+  }
+  numa_free_nodemask(numa_cpu_mask);
+
   // Memory node binding
-  if (numa_available() != -1) {
+  if (false && numa_available() != -1) {
     std::set<int> node_ids;
     for (const auto& cpu_id : omp_cpu_ids) {
       int node_id = numa_node_of_cpu(cpu_id);
