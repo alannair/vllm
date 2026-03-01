@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     VLLM_CPU_OMP_THREADS_BIND: str = ""
     VLLM_CPU_NUM_OF_RESERVED_CPU: int | None = None
     VLLM_CPU_SGL_KERNEL: bool = False
+    VLLM_CXLPC: float | None = None
     VLLM_XLA_CACHE_PATH: str = os.path.join(VLLM_CACHE_ROOT, "xla_cache")
     VLLM_XLA_CHECK_RECOMPILATION: bool = False
     VLLM_FUSED_MOE_CHUNK_SIZE: int = 16 * 1024
@@ -686,6 +687,10 @@ environment_variables: dict[str, Callable[[], Any]] = {
     else None,
     # (CPU backend only) whether to use SGL kernels, optimized for small batch.
     "VLLM_CPU_SGL_KERNEL": lambda: bool(int(os.getenv("VLLM_CPU_SGL_KERNEL", "0"))),
+    # Optional CLI-provided float for CPU GEMM dispatch tuning.
+    "VLLM_CXLPC": lambda: float(os.getenv("VLLM_CXLPC"))
+    if "VLLM_CXLPC" in os.environ
+    else None,
     # If the env var is set, Ray Compiled Graph uses the specified
     # channel type to communicate between workers belonging to
     # different pipeline-parallel stages.
@@ -1667,6 +1672,7 @@ def compile_factors() -> dict[str, object]:
         "VLLM_CPU_NUM_OF_RESERVED_CPU",
         "VLLM_CPU_MOE_PREPACK",
         "VLLM_CPU_SGL_KERNEL",
+        "VLLM_CXLPC",
         "VLLM_TEST_FORCE_LOAD_FORMAT",
         "LOCAL_RANK",
         "CUDA_VISIBLE_DEVICES",

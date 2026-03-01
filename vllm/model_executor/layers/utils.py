@@ -243,6 +243,8 @@ def dispatch_cpu_unquantized_gemm(
     layer: torch.nn.Module,
     remove_weight: bool,
 ) -> None:
+    cxlpc = float(envs.VLLM_CXLPC) if envs.VLLM_CXLPC is not None else 0.0
+
     # skip for missing layers
     if layer.weight.is_meta:
         layer.cpu_linear = torch.nn.functional.linear
@@ -269,7 +271,7 @@ def dispatch_cpu_unquantized_gemm(
     ):
         try:
             origin_weight = layer.weight
-            handler = ops.create_onednn_mm(origin_weight.t(), 32)
+            handler = ops.create_onednn_mm(origin_weight.t(), 32, cxlpc)
             layer.cpu_linear = lambda x, weight, bias: ops.onednn_mm(handler, x, bias)
             if remove_weight:
                 layer.weight = torch.nn.Parameter(torch.empty(0), requires_grad=False)

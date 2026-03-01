@@ -2843,12 +2843,14 @@ def is_onednn_acl_supported():
 def create_onednn_mm(
     weight: torch.Tensor,  # [K, N]
     primitive_cache_size: int = 128,
+    cxlpc: float = 0.0,
 ) -> CPUDNNLGEMMHandler:
     handler = CPUDNNLGEMMHandler()
     handler.k, handler.n = weight.size()
+    cxlbp = int(cxlpc * 100)
     # store the handler pointer in a tensor it doesn't get inlined
     handler.handler_tensor = torch.tensor(
-        torch.ops._C.create_onednn_mm_handler(weight, primitive_cache_size),
+        torch.ops._C.create_onednn_mm_handler(weight, primitive_cache_size, cxlbp),
         dtype=torch.int64,
     )
     return handler

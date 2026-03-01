@@ -407,6 +407,9 @@ def setup_server(args):
     """Validate API server args, set up signal handler, create socket
     ready to serve."""
 
+    if getattr(args, "cxlpc", None) is not None:
+        os.environ["VLLM_CXLPC"] = str(args.cxlpc)
+
     log_version_and_model(logger, VLLM_VERSION, args.model)
     log_non_default_args(args)
 

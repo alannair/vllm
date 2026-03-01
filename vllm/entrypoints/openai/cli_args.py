@@ -215,6 +215,8 @@ class FrontendArgs:
     Enable offline FastAPI documentation for air-gapped environments.
     Uses vendored static assets bundled with vLLM.
     """
+    cxlpc: float | None = None
+    """Optional float value propagated to low-level CPU GEMM dispatch logic."""
 
     @staticmethod
     def add_cli_args(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:

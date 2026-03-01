@@ -22,7 +22,8 @@ void onednn_scaled_mm(torch::Tensor& c, const torch::Tensor& a,
                       const torch::Tensor& handler_tensor);
 
 int64_t create_onednn_mm_handler(const torch::Tensor& b,
-                                 int64_t primitive_cache_size);
+                                 int64_t primitive_cache_size,
+                                 int64_t cxlbp);
 
 void onednn_mm(torch::Tensor& c, const torch::Tensor& a,
                const std::optional<torch::Tensor>& bias,
@@ -191,7 +192,7 @@ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
   // Create oneDNN GEMM handler
   ops.def(
       "create_onednn_mm_handler(Tensor b, int "
-      "primitive_cache_size) -> int",
+      "primitive_cache_size, int cxlbp) -> int",
       &create_onednn_mm_handler);
 
   // oneDNN GEMM

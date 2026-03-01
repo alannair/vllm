@@ -1,3 +1,5 @@
+#include <numaif.h>
+#include <unistd.h>
 #include "cpu_types.hpp"
 #include "dnnl_helper.h"
 
@@ -494,12 +496,50 @@ void dynamic_scaled_int8_quant(
       });
 }
 
+void cxl_interleave_tensor(const torch::Tensor& tensor, int64_t cxlbp) {
+  int tensor_bytes = tensor.element_size() * tensor.numel();
+  int cxl_pages = 0, total_pages = 0;
+  int cxl_nid = 2, page_size = 4096, curr_cxlbp = 0;
+
+  int8_t* addr = reinterpret_cast<int8_t*>(tensor.data_ptr());
+  std::vector<void*> pages;
+  std::vector<int> nodes;
+  std::vector<int> status;
+
+  if (cxlbp < 1 || cxlbp > 10000)
+    return;
+
+  addr = addr - reinterpret_cast<intptr_t>(addr) % page_size;
+
+  while (total_pages * page_size < tensor_bytes) {
+    if (curr_cxlbp < cxlbp) {
+      pages.push_back(addr);
+      nodes.push_back(cxl_nid);
+      status.push_back(0);
+      cxl_pages++;
+      cxl_nid = (cxl_nid == 2) ? 3 : 2;
+    }
+    total_pages++;
+    addr += page_size;
+    curr_cxlbp = 10000 * cxl_pages / total_pages;
+  }
+
+  int pid = getpid();
+  long ret = move_pages(pid, pages.size(), pages.data(),
+      nodes.data(), status.data(), MPOL_MF_MOVE);
+  if (ret < 0)
+    TORCH_WARN("move_pages failed with error code ", errno);
+}
+
 int64_t create_onednn_mm_handler(const torch::Tensor& b,
-                                 int64_t primitive_cache_size) {
+                                 int64_t primitive_cache_size,
+                                 int64_t cxlbp) {
   TORCH_CHECK(b.dim() == 2);
 
   MatMulPrimitiveHandler::Args args;
   args.primitive_cache_size = primitive_cache_size;
+
+  cxl_interleave_tensor(b, cxlbp);
 
   args.b_k_size = b.size(0);
   args.b_k_stride = b.stride(0);
