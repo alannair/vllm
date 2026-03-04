@@ -501,6 +501,7 @@ void cxl_interleave_tensor(const torch::Tensor& tensor, int64_t cxlbp) {
   int cxl_pages = 0, total_pages = 0;
   int cxl_nid = 2, page_size = 4096, curr_cxlbp = 0;
 
+  static int mmidx = 0;
   int8_t* addr = reinterpret_cast<int8_t*>(tensor.data_ptr());
   std::vector<void*> pages;
   std::vector<int> nodes;
@@ -508,6 +509,16 @@ void cxl_interleave_tensor(const torch::Tensor& tensor, int64_t cxlbp) {
 
   if (cxlbp < 1 || cxlbp > 10000)
     return;
+
+  int layer = -1, op_in_layer = -1;
+  if (mmidx >= 1) {
+    layer = (mmidx - 1) / 4;
+    op_in_layer = (mmidx - 1) % 4;
+  }
+  mmidx++;
+
+  // if ((layer == -1) || (op_in_layer <= 3))
+  //   return;
 
   addr = addr - reinterpret_cast<intptr_t>(addr) % page_size;
 
@@ -529,6 +540,22 @@ void cxl_interleave_tensor(const torch::Tensor& tensor, int64_t cxlbp) {
       nodes.data(), status.data(), MPOL_MF_MOVE);
   if (ret < 0)
     TORCH_WARN("move_pages failed with error code ", errno);
+  
+  int moved_2 = 0, moved_3 = 0, failed = 0, unchanged = 0;
+  for (size_t i = 0; i < status.size(); i++) {
+    if (status[i] == 2)
+      moved_2++;
+    else if (status[i] == 3)
+      moved_3++;
+    else if (status[i] < 0)
+      failed++;
+    else
+      unchanged++;
+  }
+
+  TORCH_WARN("move_pages result: moved to node 2: ", moved_2,
+      ", moved to node 3: ", moved_3, ", unchanged: ", unchanged,
+      ", failed: ", failed, ", layer: ", layer, ", op_in_layer: ", op_in_layer);
 }
 
 int64_t create_onednn_mm_handler(const torch::Tensor& b,
